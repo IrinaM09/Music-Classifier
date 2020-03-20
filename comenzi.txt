@@ -1,3 +1,22 @@
+Extragere feature-uri importante
+--------------------------------
+
+https://www.datacamp.com/community/tutorials/random-forests-classifier-python
+
+
+Listare parametri model
+-----------------------
+
+# Look at parameters used by our current forest
+print('Parameters currently in use:\n')
+print(rnd_forest_model.get_params())
+
+Importanta feature-urilor
+-------------------------
+print(rnd_forest_model.feature_importances_)
+[0.15623779 0.14725204 0.20724229 0.12666501 0.0267904 0.21315222 0.05353177 0.06912846]
+
+
 Sample-uri dintr-un cluster
 ---------------------------
 

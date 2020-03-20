@@ -4,18 +4,22 @@ DOWNLOAD_SAMPLE_DATASET = True  # @param {type: "boolean"}
 
 if DOWNLOAD_SAMPLE_DATASET:
     from tqdm import tqdm
-    # import librosa
 
 import pandas as pd
 from zipfile import ZipFile
 
-# import IPython.display as ipd
 from sklearn.cluster import KMeans
 import numpy as np
 from sklearn import preprocessing
 import matplotlib.pyplot as plt
-from sklearn.metrics import silhouette_samples, silhouette_score
 import matplotlib.cm as cm
+from sklearn.ensemble import RandomForestClassifier
+import xgboost as xgb
+import seaborn as sn
+from sklearn.svm import SVC
+from sklearn.metrics import *
+from sklearn.model_selection import cross_val_score
+from sklearn.model_selection import cross_validate
 
 
 def _reporthook(t):
@@ -102,7 +106,7 @@ def get_song_path(track_id: int):
     return f'song_samples/{track_id:06}.mp3'
 
 
-def plot_silhouette(n_cluster):
+def plot_silhouette(n_cluster, x_train):
     # Create a subplot with 1 row and 2 columns
     fig, (ax1, ax2) = plt.subplots(1, 2)
     fig.set_size_inches(18, 7)
@@ -112,16 +116,16 @@ def plot_silhouette(n_cluster):
     ax1.set_xlim([-0.1, 1])
     # The (n_clusters+1)*10 is for inserting blank space between silhouette
     # plots of individual clusters, to demarcate them clearly.
-    ax1.set_ylim([0, len(X_train) + (n_cluster + 1) * 10])
+    ax1.set_ylim([0, len(x_train) + (n_cluster + 1) * 10])
 
     kmeans_model = KMeans(n_clusters=n_cluster)
-    cluster_labels = kmeans_model.fit_predict(X_train)
+    cluster_labels = kmeans_model.fit_predict(x_train)
 
     # The silhouette_score gives the average value for all the samples.
-    silhouette_avg = silhouette_score(X_train, cluster_labels)
+    silhouette_avg = silhouette_score(x_train, cluster_labels)
 
     # Compute the silhouette scores for each sample
-    sample_silhouette_values = silhouette_samples(X_train, cluster_labels)
+    sample_silhouette_values = silhouette_samples(x_train, cluster_labels)
 
     y_lower = 10
     for i in range(n_cluster):
@@ -158,7 +162,7 @@ def plot_silhouette(n_cluster):
 
         # 2nd Plot showing the actual clusters formed
         colors = cm.nipy_spectral(cluster_labels.astype(float) / n_cluster)
-        ax2.scatter(X_train.iloc[:, 0], X_train.iloc[:, 1], marker='.', s=30, lw=0, alpha=0.7,
+        ax2.scatter(x_train.iloc[:, 0], x_train.iloc[:, 1], marker='.', s=30, lw=0, alpha=0.7,
                     c=colors, edgecolor='k')
 
         # Labeling the clusters
@@ -182,7 +186,80 @@ def plot_silhouette(n_cluster):
     plt.show()
 
 
-def kmeans(x_train, x_test, y_train, y_test):
+def plot_conf_matrix(confusion_matrix, title):
+    df_cm = pd.DataFrame(confusion_matrix,
+                         index=["Rock", "Electronic", "Folk", "Hip-Hop"],
+                         columns=["TN", "FP", "FN", "TP"])
+    plt.figure(figsize=(10, 7))
+    plt.title(title)
+    sn.heatmap(df_cm, annot=True)
+    plt.show()
+
+
+def get_rand_index(clusters, labels):
+    tp = tn = fp = fn = 0
+    nr_clusters = len(clusters)
+
+    for i in range(nr_clusters):
+        for j in range(nr_clusters):
+            if i >= j:
+                continue
+            if clusters[i] == clusters[j] and labels[i] == labels[j]:
+                tp += 1
+                continue
+            if clusters[i] == clusters[j] and labels[i] != labels[j]:
+                fp += 1
+                continue
+            if clusters[i] != clusters[j] and labels[i] == labels[j]:
+                fn += 1
+                continue
+            if clusters[i] != clusters[j] and labels[i] != labels[j]:
+                tn += 1
+                continue
+
+    numerator = tp + tn
+    denominator = tp + tn + fp + fn
+
+    return numerator / denominator
+
+
+def get_accuracy(y_true, y_pred):
+    return accuracy_score(y_true, y_pred)
+
+
+def get_precision(y_true, y_pred):
+    return precision_score(y_true, y_pred, average='macro')
+
+
+def get_recall(y_true, y_pred):
+    return recall_score(y_true, y_pred, average='macro')
+
+
+def get_f1_score(y_true, y_pred):
+    return f1_score(y_true, y_pred, average='macro')
+
+
+def get_confusion_matrix(y_true, y_pred):
+    return confusion_matrix(y_true, y_pred, labels=["Rock", "Electronic", "Folk", "Hip-Hop"], normalize='true')
+
+
+def get_classification_metrics(model, y_true, y_pred):
+    scoring = ['accuracy', 'precision_macro', 'recall_macro', 'f1_macro']
+    scores = cross_validate(model, x_train, y_train, cv=5, scoring=scoring)
+
+    # accuracy = cross_val_score(model, x_train, y_train, cv=5, scoring='accuracy')
+    # precision = cross_val_score(model, x_train, y_train, cv=5, scoring='precision_macro')
+    # recall = cross_val_score(model, x_train, y_train, cv=5, scoring='recall_macro')
+    # f1_score = cross_val_score(model, x_train, y_train, cv=5, scoring='f1_macro')
+    # confusion_matrix = get_confusion_matrix(y_true, y_pred)
+
+    # print(classification_report(y_true, y_pred))
+
+    return scores['test_accuracy'], scores['test_precision_macro'], scores['test_recall_macro'],\
+           scores['test_f1_macro'], scores['test_f1_macro']
+
+
+def kmeans_baseline(x_train, x_test, y_train, y_test):
     # 1. Get the whole dataset
     x_train = pd.concat([x_train, x_test])
     y_train = pd.concat([y_train, y_test])
@@ -229,43 +306,68 @@ def kmeans(x_train, x_test, y_train, y_test):
             max_nr_cluster = entry
 
     # 5. Compute RandIndex
-    rand_idx = randIndex(cluster_labels, y_train.values)
+    rand_idx = get_rand_index(cluster_labels, y_train.values)
     print("randIndex: %.5f, max cluster: %d with avg %.5f" % (rand_idx, max_nr_cluster, max_avg_cluster))
 
     # Plot the clusters
-    plot_silhouette(max_nr_cluster)
+    plot_silhouette(max_nr_cluster, x_train)
 
     return rand_idx
 
 
-def randIndex(clusters, labels):
-    tp = tn = fp = fn = 0
-    nr_clusters = len(clusters)
+def random_forests_baseline(x_train, y_train, y_test, x_test):
+    # Train Model
+    rnd_forest_model = RandomForestClassifier(random_state=0)
+    rnd_forest_model.fit(x_train, y_train)
 
-    for i in range(nr_clusters):
-        for j in range(nr_clusters):
-            if i >= j:
-                continue
-            if clusters[i] == clusters[j] and labels[i] == labels[j]:
-                tp += 1
-                continue
-            if clusters[i] == clusters[j] and labels[i] != labels[j]:
-                fp += 1
-                continue
-            if clusters[i] != clusters[j] and labels[i] == labels[j]:
-                fn += 1
-                continue
-            if clusters[i] != clusters[j] and labels[i] != labels[j]:
-                tn += 1
-                continue
+    # Predict
+    y_pred = rnd_forest_model.predict(x_test)
+    y_true = y_test.values
 
-    numerator = tp + tn
-    denominator = tp + tn + fp + fn
-
-    return numerator / denominator
+    # 1. Get the whole dataset
+    x_train = pd.concat([x_train, x_test])
+    y_train = pd.concat([y_train, y_test])
+    # Get Classification Metrics
+    return get_classification_metrics(rnd_forest_model, x_train, y_train)
 
 
-# def random_forests():
+def random_forests_improved(x_train, y_train, y_test, x_test):
+    # Train Model
+    rnd_forest_model = RandomForestClassifier(n_estimators=200, max_depth=6, random_state=0)
+    rnd_forest_model.fit(x_train, y_train)
+
+    # Predict
+    y_pred = rnd_forest_model.predict(x_test)
+    y_true = y_test.values
+
+    # Get Classification Metrics
+    return get_classification_metrics(rnd_forest_model, y_true, y_pred)
+
+
+def gxboost_baseline(x_train, y_train, y_test, x_test):
+    # Train Model
+    gxboost_model = xgb.XGBClassifier(random_state=0, learning_rate=0.01)
+    gxboost_model.fit(x_train, y_train)
+
+    # Predict
+    y_pred = gxboost_model.predict(x_test)
+    y_true = y_test.values
+
+    # Get Classification Metrics
+    return get_classification_metrics(gxboost_model, y_true, y_pred)
+
+
+def svm_baseline(x_train, y_train, y_test, x_test):
+    # Train Model
+    svm_model = SVC()
+    svm_model.fit(x_train, y_train)
+
+    # Predict
+    y_pred = svm_model.predict(x_test)
+    y_true = y_test.values
+
+    # Get Classification Metrics
+    return get_classification_metrics(svm_model, y_true, y_pred)
 
 
 if __name__ == "__main__":
@@ -282,13 +384,67 @@ if __name__ == "__main__":
     test = tracks['set', 'split'].isin(['test', 'validation'])
 
     # Get X and Y
-    X_train = echonest.loc[train, ('echonest', 'audio_features')]
-    X_test = echonest.loc[test, ('echonest', 'audio_features')]
+    x_train = echonest.loc[train, ('echonest', 'audio_features')]
+    x_test = echonest.loc[test, ('echonest', 'audio_features')]
 
-    Y_train = tracks.loc[train, ('track', 'genre_top')]
-    Y_test = tracks.loc[test, ('track', 'genre_top')]
+    y_train = tracks.loc[train, ('track', 'genre_top')]
+    y_test = tracks.loc[test, ('track', 'genre_top')]
 
-    # features:
+    print("x & y train size: %d\nx & y test size: %d\n" %
+          (len(x_train), len(x_test)))
+
+    # Baseline: audio-features:
     # ['acousticness', 'danceability', 'energy', 'instrumentalness', 'liveness', 'speechiness', 'tempo', 'valence']
 
-    kmeans(X_train, X_test, Y_train, Y_test)
+    # ----------------
+    # K-MEANS BASELINE
+    # ----------------
+    # kmeans_baseline(x_train, x_test, y_train, y_test)
+
+    # ----------------------
+    # RANDOM FOREST BASELINE
+    # ----------------------
+    rnd_forest_accuracy, \
+    rnd_forest_precision, \
+    rnd_forest_recall, \
+    rnd_forest_f1_score, \
+    rnd_forest_confusion_matrix = random_forests_baseline(x_train, y_train, y_test, x_test)
+    print("accuracy: %s\nprecision: %s\nrecall: %s\nf1_score: %s\n, confusion_matrix: %s\n" % (
+        rnd_forest_accuracy, rnd_forest_precision, rnd_forest_recall, rnd_forest_f1_score, rnd_forest_confusion_matrix))
+    # plot_conf_matrix(rnd_forest_confusion_matrix, 'Random Forest Baseline')
+
+    # ----------------------
+    # RANDOM FOREST IMPROVED
+    # ----------------------
+    rnd_forest_accuracy, \
+    rnd_forest_precision, \
+    rnd_forest_recall, \
+    rnd_forest_f1_score, \
+    rnd_forest_confusion_matrix = random_forests_improved(x_train, y_train, y_test, x_test)
+    print("accuracy: %s\nprecision: %s\nrecall: %s\nf1_score: %s\n, confusion_matrix: %s\n" % (
+        rnd_forest_accuracy, rnd_forest_precision, rnd_forest_recall, rnd_forest_f1_score, rnd_forest_confusion_matrix))
+    # plot_conf_matrix(rnd_forest_confusion_matrix, 'Random Forest Improved')
+
+    # ----------------
+    # GXBOOST BASELINE
+    # ----------------
+    # gxboost_accuracy, \
+    # gxboost_precision, \
+    # gxboost_recall, \
+    # gxboost_f1_score, \
+    # gxboost_confusion_matrix = gxboost_baseline(x_train, y_train, y_test, x_test)
+    # print("accuracy: %.2f\nprecision: %.2f\nrecall: %.2f\nf1_score: %.2f\n" % (
+    #     gxboost_accuracy, gxboost_precision, gxboost_recall, gxboost_f1_score))
+    # plot_conf_matrix(gxboost_confusion_matrix, 'GXBoost')
+
+    # ------------
+    # SVM BASELINE
+    # ------------
+    # svm_accuracy, \
+    # svm_precision, \
+    # svm_recall, \
+    # svm_f1_score, \
+    # svm_confusion_matrix = svm_baseline(x_train, y_train, y_test, x_test)
+    # print("accuracy: %.2f\nprecision: %.2f\nrecall: %.2f\nf1_score: %.2f\n" % (
+    #     svm_accuracy, svm_precision, svm_recall, svm_f1_score))
+    # plot_conf_matrix(svm_confusion_matrix, 'SVM')
