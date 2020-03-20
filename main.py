@@ -18,7 +18,6 @@ import xgboost as xgb
 import seaborn as sn
 from sklearn.svm import SVC
 from sklearn.metrics import *
-from sklearn.model_selection import cross_val_score
 from sklearn.model_selection import cross_validate
 
 
@@ -222,28 +221,27 @@ def get_rand_index(clusters, labels):
 
     return numerator / denominator
 
-
-def get_accuracy(y_true, y_pred):
-    return accuracy_score(y_true, y_pred)
-
-
-def get_precision(y_true, y_pred):
-    return precision_score(y_true, y_pred, average='macro')
-
-
-def get_recall(y_true, y_pred):
-    return recall_score(y_true, y_pred, average='macro')
-
-
-def get_f1_score(y_true, y_pred):
-    return f1_score(y_true, y_pred, average='macro')
-
-
+# def get_accuracy(y_true, y_pred):
+#     return accuracy_score(y_true, y_pred)
+#
+#
+# def get_precision(y_true, y_pred):
+#     return precision_score(y_true, y_pred, average='macro')
+#
+#
+# def get_recall(y_true, y_pred):
+#     return recall_score(y_true, y_pred, average='macro')
+#
+#
+# def get_f1_score(y_true, y_pred):
+#     return f1_score(y_true, y_pred, average='macro')
+#
+#
 def get_confusion_matrix(y_true, y_pred):
     return confusion_matrix(y_true, y_pred, labels=["Rock", "Electronic", "Folk", "Hip-Hop"], normalize='true')
 
 
-def get_classification_metrics(model, y_true, y_pred):
+def get_classification_metrics(model, x_train, y_train):
     scoring = ['accuracy', 'precision_macro', 'recall_macro', 'f1_macro']
     scores = cross_validate(model, x_train, y_train, cv=5, scoring=scoring)
 
@@ -255,8 +253,11 @@ def get_classification_metrics(model, y_true, y_pred):
 
     # print(classification_report(y_true, y_pred))
 
-    return scores['test_accuracy'], scores['test_precision_macro'], scores['test_recall_macro'],\
-           scores['test_f1_macro'], scores['test_f1_macro']
+    return scores['test_accuracy'],\
+           scores['test_precision_macro'],\
+           scores['test_recall_macro'],\
+           scores['test_f1_macro'],\
+           scores['test_f1_macro']
 
 
 def kmeans_baseline(x_train, x_test, y_train, y_test):
@@ -315,59 +316,51 @@ def kmeans_baseline(x_train, x_test, y_train, y_test):
     return rand_idx
 
 
-def random_forests_baseline(x_train, y_train, y_test, x_test):
-    # Train Model
-    rnd_forest_model = RandomForestClassifier(random_state=0)
-    rnd_forest_model.fit(x_train, y_train)
-
-    # Predict
-    y_pred = rnd_forest_model.predict(x_test)
-    y_true = y_test.values
-
-    # 1. Get the whole dataset
-    x_train = pd.concat([x_train, x_test])
-    y_train = pd.concat([y_train, y_test])
-    # Get Classification Metrics
-    return get_classification_metrics(rnd_forest_model, x_train, y_train)
-
-
-def random_forests_improved(x_train, y_train, y_test, x_test):
-    # Train Model
-    rnd_forest_model = RandomForestClassifier(n_estimators=200, max_depth=6, random_state=0)
-    rnd_forest_model.fit(x_train, y_train)
-
-    # Predict
-    y_pred = rnd_forest_model.predict(x_test)
-    y_true = y_test.values
+def random_forests_baseline(x_train, y_train):
+    # Model
+    model = RandomForestClassifier(random_state=0)
+    # model.fit(x_train, y_train)
+    #
+    # # Predict
+    # y_pred = model.predict(x_test)
+    # y_true = y_test.values
 
     # Get Classification Metrics
-    return get_classification_metrics(rnd_forest_model, y_true, y_pred)
+    return get_classification_metrics(model, x_train, y_train)
 
 
-def gxboost_baseline(x_train, y_train, y_test, x_test):
-    # Train Model
-    gxboost_model = xgb.XGBClassifier(random_state=0, learning_rate=0.01)
-    gxboost_model.fit(x_train, y_train)
-
-    # Predict
-    y_pred = gxboost_model.predict(x_test)
-    y_true = y_test.values
+def random_forests_improved(x_train, y_train):
+    # Model
+    model = RandomForestClassifier(n_estimators=200, max_depth=6, random_state=0)
 
     # Get Classification Metrics
-    return get_classification_metrics(gxboost_model, y_true, y_pred)
+    return get_classification_metrics(model, x_train, y_train)
 
 
-def svm_baseline(x_train, y_train, y_test, x_test):
-    # Train Model
-    svm_model = SVC()
-    svm_model.fit(x_train, y_train)
-
-    # Predict
-    y_pred = svm_model.predict(x_test)
-    y_true = y_test.values
+def gxboost_baseline(x_train, y_train):
+    # Model
+    model = xgb.XGBClassifier(random_state=0, learning_rate=0.01)
+    # model.fit(x_train, y_train)
+    #
+    # # Predict
+    # y_pred = model.predict(x_test)
+    # y_true = y_test.values
 
     # Get Classification Metrics
-    return get_classification_metrics(svm_model, y_true, y_pred)
+    return get_classification_metrics(model, x_train, y_train)
+
+
+def svm_baseline(x_train, y_train):
+    # Model
+    model = SVC()
+    # model.fit(x_train, y_train)
+    #
+    # # Predict
+    # y_pred = model.predict(x_test)
+    # y_true = y_test.values
+
+    # Get Classification Metrics
+    return get_classification_metrics(model, x_train, y_train)
 
 
 if __name__ == "__main__":
@@ -401,6 +394,9 @@ if __name__ == "__main__":
     # ----------------
     # kmeans_baseline(x_train, x_test, y_train, y_test)
 
+    x_train = pd.concat([x_train, x_test])
+    y_train = pd.concat([y_train, y_test])
+
     # ----------------------
     # RANDOM FOREST BASELINE
     # ----------------------
@@ -408,7 +404,7 @@ if __name__ == "__main__":
     rnd_forest_precision, \
     rnd_forest_recall, \
     rnd_forest_f1_score, \
-    rnd_forest_confusion_matrix = random_forests_baseline(x_train, y_train, y_test, x_test)
+    rnd_forest_confusion_matrix = random_forests_baseline(x_train, y_train)
     print("accuracy: %s\nprecision: %s\nrecall: %s\nf1_score: %s\n, confusion_matrix: %s\n" % (
         rnd_forest_accuracy, rnd_forest_precision, rnd_forest_recall, rnd_forest_f1_score, rnd_forest_confusion_matrix))
     # plot_conf_matrix(rnd_forest_confusion_matrix, 'Random Forest Baseline')
@@ -420,7 +416,7 @@ if __name__ == "__main__":
     rnd_forest_precision, \
     rnd_forest_recall, \
     rnd_forest_f1_score, \
-    rnd_forest_confusion_matrix = random_forests_improved(x_train, y_train, y_test, x_test)
+    rnd_forest_confusion_matrix = random_forests_improved(x_train, y_train)
     print("accuracy: %s\nprecision: %s\nrecall: %s\nf1_score: %s\n, confusion_matrix: %s\n" % (
         rnd_forest_accuracy, rnd_forest_precision, rnd_forest_recall, rnd_forest_f1_score, rnd_forest_confusion_matrix))
     # plot_conf_matrix(rnd_forest_confusion_matrix, 'Random Forest Improved')
@@ -432,7 +428,7 @@ if __name__ == "__main__":
     # gxboost_precision, \
     # gxboost_recall, \
     # gxboost_f1_score, \
-    # gxboost_confusion_matrix = gxboost_baseline(x_train, y_train, y_test, x_test)
+    # gxboost_confusion_matrix = gxboost_baseline(x_train, y_train)
     # print("accuracy: %.2f\nprecision: %.2f\nrecall: %.2f\nf1_score: %.2f\n" % (
     #     gxboost_accuracy, gxboost_precision, gxboost_recall, gxboost_f1_score))
     # plot_conf_matrix(gxboost_confusion_matrix, 'GXBoost')
@@ -444,7 +440,7 @@ if __name__ == "__main__":
     # svm_precision, \
     # svm_recall, \
     # svm_f1_score, \
-    # svm_confusion_matrix = svm_baseline(x_train, y_train, y_test, x_test)
+    # svm_confusion_matrix = svm_baseline(x_train, y_train)
     # print("accuracy: %.2f\nprecision: %.2f\nrecall: %.2f\nf1_score: %.2f\n" % (
     #     svm_accuracy, svm_precision, svm_recall, svm_f1_score))
     # plot_conf_matrix(svm_confusion_matrix, 'SVM')
