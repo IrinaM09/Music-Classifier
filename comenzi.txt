@@ -1,3 +1,41 @@
+Analizare dataset
+-----------------
+1.
+dict = {}
+for entry in y_train_baseline.values:
+    if entry not in dict:
+        dict[entry] = 1
+    else:
+        dict[entry] = dict[entry] + 1
+print(dict)
+
+2.
+print(echonest.isnull().sum())
+
+
+Curatare dataset
+----------------
+# x_train.fillna(x_train.mean(), inplace=True)
+# x_test.fillna(x_test.mean(), inplace=True)
+#
+# x_train_f.replace([np.inf, -np.inf], np.nan, inplace=True)
+# x_test_f.replace([np.inf, -np.inf], np.nan, inplace=True)
+#
+# x_train_f.fillna(x_train_f.mean(), inplace=True)
+# x_test_f.fillna(x_test_f.mean(), inplace=True)
+#
+# print(np.isnan(x_train_f.any()))  # and gets False
+# print(np.isfinite(x_train_f.all()))  # and gets True
+# print(np.isnan(x_test_f.any()))  # and gets False
+# print(np.isfinite(x_test_f.all()))  # and gets True
+
+
+Extragere features din dataset-ul features
+------------------------------------------
+x_train_f = features.loc[train, ('chroma_cens', 'kurtosis')]
+x_test_f = features.loc[test, ('chroma_cens', 'kurtosis')]
+
+
 Extragere feature-uri importante
 --------------------------------
 
